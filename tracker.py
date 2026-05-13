@@ -3,8 +3,6 @@ import mediapipe as mp
 import csv
 import time
 from cap_from_youtube import cap_from_youtube
-#from mediapipe.tasks import python
-#from mediapipe.tasks.python import vision
 from mediapipe.tasks.python import BaseOptions
 from mediapipe.tasks.python.vision import PoseLandmarker, PoseLandmarkerOptions, RunningMode
 
@@ -16,7 +14,10 @@ model_path = 'pose_landmarker_heavy.task'
 options = PoseLandmarkerOptions(
     base_options = BaseOptions(model_asset_path=model_path),
     running_mode=RunningMode.VIDEO,
-    num_poses=2
+    num_poses=2,
+    min_pose_detection_confidence=0.7,  # Initial detection sensitivity
+    min_pose_presence_confidence=0.5,   # Sensitivity to keep tracking the pose
+    min_tracking_confidence=0.5  #temporal consistency sensitivity
 )
 
 #Making sure that the first fencer on the left will be the left fencer at all time
@@ -28,7 +29,30 @@ last_pos_r = None
     
 csv_file = open('fencing_data.csv', mode='w', newline='')
 csv_writer = csv.writer(csv_file)
-csv_writer.writerow(['timestamp_ms', 'hip_x', 'hip_y', 'hip_z'])
+csv_writer.writerow(['timestamp_ms',
+                     'lla_x', 'lla_y', 'lla_z',
+                     'lra_x', 'lra_y', 'lra_z',
+                     'llk_x', 'llk_y', 'llk_z',
+                     'lrk_x', 'lrk_y', 'lrk_z',
+                     'llh_x', 'llh_y', 'llh_z',
+                     'lrh_x', 'lrh_y', 'lrh_z',
+                     'lls_x', 'lls_y', 'lls_z',
+                     'lrs_x', 'lrs_y', 'lrs_z',
+                     'lre_x', 'lre_y', 'lre_z',
+                     'lrh_x', 'lrh_y', 'lrh_z',
+                     'lrf_x', 'lrf_y', 'lrf_z',
+                     
+                     'rla_x', 'rla_y', 'rla_z',
+                     'rra_x', 'rra_y', 'rra_z',
+                     'rlk_x', 'rlk_y', 'rlk_z',
+                     'rrk_x', 'rrk_y', 'rrk_z',
+                     'rlh_x', 'rlh_y', 'rlh_z',
+                     'rrh_x', 'rrh_y', 'rrh_z',
+                     'rls_x', 'rls_y', 'rls_z',
+                     'rrs_x', 'rrs_y', 'rrs_z',
+                     'rre_x', 'rre_y', 'rre_z',
+                     'rrh_x', 'rrh_y', 'rrh_z',
+                     'rrf_x', 'rrf_y', 'rrf_z'])
 
 with PoseLandmarker.create_from_options(options) as landmarker:
     while cap.isOpened():
@@ -52,19 +76,19 @@ with PoseLandmarker.create_from_options(options) as landmarker:
             poses = pose_landmarker_result.pose_landmarks
 
             if len(poses) == 2:
-                if last_pos_l is None:
-                    poses = sorted(poses, key=lambda p: p[23].x)
-                    fencer_l_data = poses[0]
-                    fencer_r_data = poses[1]
-                    first_frame_lock = True
-                else: 
-                    dist_0_to_l = ((poses[0][23].x - last_pos_l[0])**2 + (poses[0][23].y - last_pos_l[1])**2)**0.5
-                    dist_1_to_l = ((poses[1][23].x - last_pos_l[0])**2 + (poses[1][23].y - last_pos_l[1])**2)**0.5
+                #if last_pos_l is None and last_pos_r is None:
+                poses = sorted(poses, key=lambda p: p[23].x)
+                fencer_l_data = poses[0]
+                fencer_r_data = poses[1]
+                first_frame_lock = True
+                #else: 
+                    #dist_0_to_l = ((poses[0][23].x - last_pos_l[0])**2 + (poses[0][23].y - last_pos_l[1])**2)**0.5
+                    #dist_1_to_l = ((poses[1][23].x - last_pos_l[0])**2 + (poses[1][23].y - last_pos_l[1])**2)**0.5
 
-                    if dist_0_to_l < dist_1_to_l:
-                        fencer_l_data, fencer_r_data = poses[0], poses[1]
-                    else: 
-                        fencer_l_data, fencer_r_data = poses[1], poses[0]
+                   # if dist_0_to_l < dist_1_to_l:
+                      #  fencer_l_data, fencer_r_data = poses[0], poses[1]
+                   # else: 
+                     #   fencer_l_data, fencer_r_data = poses[1], poses[0]
 
                 last_pos_l = (fencer_l_data[23].x, fencer_l_data[23].y)
                 last_pos_r = (fencer_r_data[23].x, fencer_r_data[23].y)
@@ -93,7 +117,30 @@ with PoseLandmarker.create_from_options(options) as landmarker:
                 rra = fencer_r_data[28]
                 rla = fencer_r_data[27]
 
-                csv_writer.writerow([frame_timestamp_ms, llh.x, llh.y, llh.z, lrw.x, lrw.y, lrw.z])
+                csv_writer.writerow([frame_timestamp_ms,
+                                    lla.x, lla.y, lla.z,
+                                    lra.x, lra.y, lra.z,
+                                    llk.x, llk.y, llk.z,
+                                    lrk.x, lrk.y, lrk.z,
+                                    llh.x, llh.y, llh.z,
+                                    lrh.x, lrh.y, lrh.z,
+                                    lls.x, lls.y, lls.z,
+                                    lrs.x, lrs.y, lrs.z,
+                                    lre.x, lre.y, lre.z,
+                                    lrh.x, lrh.y, lrh.z,
+                                    lrf.x, lrf.y, lrf.z,
+                                    
+                                    rla.x, rla.y, rla.z,
+                                    rra.x, rra.y, rra.z,
+                                    rlk.x, rlk.y, rlk.z,
+                                    rrk.x, rrk.y, rrk.z,
+                                    rlh.x, rlh.y, rlh.z,
+                                    rrh.x, rrh.y, rrh.z,
+                                    rls.x, rls.y, rls.z,
+                                    rrs.x, rrs.y, rrs.z,
+                                    rre.x, rre.y, rre.z,
+                                    rrh.x, rrh.y, rrh.z,
+                                    rrf.x, rrf.y, rrf.z])
 
                 h, w, _ = frame.shape
                 
