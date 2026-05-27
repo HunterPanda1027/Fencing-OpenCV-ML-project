@@ -5,12 +5,13 @@ import time
 from cap_from_youtube import cap_from_youtube
 from mediapipe.tasks.python import BaseOptions
 from mediapipe.tasks.python.vision import PoseLandmarker, PoseLandmarkerOptions, RunningMode
+import numpy as np
 
 # youtube links: 
 #Left vs Kano (2025): 'https://www.youtube.com/watch?v=MVqBp6dDTXg'
 #Right vs Limardo (2025): 'https://www.youtube.com/watch?v=IP1D0h0Gf4M'
 
-youtube_url = 'https://www.youtube.com/watch?v=IP1D0h0Gf4M'
+youtube_url = 'https://www.youtube.com/watch?v=MVqBp6dDTXg'
 cap = cap_from_youtube(youtube_url, '1080p')
 
 model_path = 'pose_landmarker_heavy.task'
@@ -67,21 +68,68 @@ csv_writer.writerow(['timestamp_ms',
                      'rw_x', 'rw_y', 'rw_z',
                      'rf_x', 'rf_y', 'rf_z'])
 
+prev_gray = None
+prev_fencer_x = None
+prev_timestamp = None
+
 with PoseLandmarker.create_from_options(options) as landmarker:
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
             break
 
+
+        
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame)
 
         frame_timestamp_ms = int(cap.get(cv2.CAP_PROP_POS_MSEC))
 
         pose_landmarker_result = landmarker.detect_for_video(mp_image, frame_timestamp_ms)
 
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+        h, w, _ = frame.shape
+        curr_timestamp = frame_timestamp_ms
+        dx_cam = 0.0
+
+        mask = np.ones(gray.shape, dtype=np.uint8) * 255
+        mask[int(h*0.75):h, :] = 0
+        mask[0:int(h * 0.15), 0:int(w * 0.15)] = 0
+
         view_mode = cv2.getTrackbarPos('View', 'Fencing Tracker')
         l_is_lefty = cv2.getTrackbarPos('Left', 'Fencing Tracker')
         r_is_lefty = cv2.getTrackbarPos('Right', 'Fencing Tracker')
+
+        if prev_gray is not None:
+            # Step A: Find sharp features anywhere in the current frame (strip edges, machine lights)
+            # Because the background is black, it will naturally find the strip and machine!
+            feat_prev = cv2.goodFeaturesToTrack(prev_gray, maxCorners=100, qualityLevel=0.01, minDistance=10, mask=mask)
+            
+            if feat_prev is not None:
+                # Step B: Track where those points moved in the new frame
+                feat_next, status, _ = cv2.calcOpticalFlowPyrLK(prev_gray, gray, feat_prev, None)
+                
+                valid_prev = feat_prev[status == 1]
+                valid_next = feat_next[status == 1]
+                
+                if len(valid_next) >= 4: # We need at least 4 points to calculate background movement
+                    # Step C: The RANSAC Magic. It filters out the fencers and finds the true camera shift.
+                    matrix, inliers = cv2.estimateAffinePartial2D(valid_prev, valid_next, method=cv2.RANSAC, ransacReprojThreshold=3.0)
+                    
+                    if matrix is not None:
+                        # dx_cam is the horizontal translation component of the camera movement matrix
+                        dx_cam = matrix[0, 2]
+
+                        # --- DEBUG DOTS ---
+                        # Loop through tracked features to verify what the math sees
+                        for i, (p_prev, p_next) in enumerate(zip(valid_prev, valid_next)):
+                            pt_x, pt_y = map(int, p_next)
+                            if inliers[i] == 1:
+                                # Safe Background Anchor point (Strip/Machine) -> GREEN
+                                cv2.circle(frame, (pt_x, pt_y), 3, (0, 255, 0), -1)
+                            else:
+                                # Moving Object Point (Fencer) -> RED (Ignored by math)
+                                cv2.circle(frame, (pt_x, pt_y), 4, (0, 0, 255), -1)
+                        
 
         #code: fencer side part
         #fencers: r for right, l for left
@@ -91,6 +139,17 @@ with PoseLandmarker.create_from_options(options) as landmarker:
 
         if pose_landmarker_result.pose_landmarks:
             poses = pose_landmarker_result.pose_landmarks
+
+            for pose in poses:
+                # Extract hip center coordinate for each detected body skeleton
+                fencer_mid_x = int(pose[23].x * w)
+                
+                # Create a protective barrier column around each fencer (100px left and right)
+                xmin_block = max(0, fencer_mid_x - 200)
+                xmax_block = min(w, fencer_mid_x + 200)
+                
+                # Black out the vertical strip column in the structural mask
+                mask[:, xmin_block:xmax_block] = 0
 
             if len(poses) == 2:
                 #if last_pos_l is None and last_pos_r is None:
@@ -158,8 +217,6 @@ with PoseLandmarker.create_from_options(options) as landmarker:
                                     re.x, re.y, re.z,
                                     rw.x, rw.y, rw.z,
                                     rf.x, rf.y, rf.z])
-
-                h, w, _ = frame.shape
                 
                 #left fencer
                 if view_mode in [1,3]: 
@@ -233,10 +290,38 @@ with PoseLandmarker.create_from_options(options) as landmarker:
                     rlax, rlay = int(rla.x * w), int(rla.y * h)
                     cv2.circle(frame, (rlax, rlay), 8, (0, 255, 0), -1)
 
-        else:
-            continue
+                front_shoulder = fencer_l_data[12] # Assuming righty front shoulder
+                curr_fencer_x = int(front_shoulder.x * w)
+                
+                velocity = 0.0
+                if prev_fencer_x is not None and prev_timestamp is not None:
+                    dt = curr_timestamp - prev_timestamp
+                    
+                    dx_observed = curr_fencer_x - prev_fencer_x
+                    dx_true = dx_observed - dx_cam # Subtract the camera's panning movement
+                    
+                    if dt > 0:
+                        velocity = abs(dx_true / dt) * 1000 # True speed in pixels per second
+                
+                # Draw the tracking indicator
+                fs_y = int(front_shoulder.y * h)
+                cv2.circle(frame, (curr_fencer_x, fs_y), 8, (0, 0, 255), -1)
+                cv2.putText(frame, f"True Speed: {velocity:.1f} px/s", (curr_fencer_x - 40, fs_y - 20),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 2)
+                
+                # Save states for next iteration
+                prev_fencer_x = curr_fencer_x
+                prev_timestamp = curr_timestamp
 
-        cv2.imshow('Fencing Tracker', frame)
+        else:
+           continue
+
+        prev_gray = gray.copy()
+        debug_frame = cv2.bitwise_and(frame, frame, mask=mask)
+        # Display raw camera frame shift value on video overlay
+        cv2.putText(debug_frame, f"Cam Shift: {dx_cam:.1f} px", (20, 40),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
+        cv2.imshow('Fencing Tracker', debug_frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 
