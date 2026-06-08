@@ -11,7 +11,10 @@ import numpy as np
 #Left vs Kano (2025): 'https://www.youtube.com/watch?v=MVqBp6dDTXg'
 #Right vs Limardo (2025): 'https://www.youtube.com/watch?v=IP1D0h0Gf4M'
 
-youtube_url = 'https://www.youtube.com/watch?v=MVqBp6dDTXg'
+#Left vs Kano (2025)
+#youtube_url = 'https://www.youtube.com/watch?v=MVqBp6dDTXg'
+#Right vs Limardo (2025)
+youtube_url = 'https://www.youtube.com/watch?v=IP1D0h0Gf4M'
 cap = cap_from_youtube(youtube_url, '1080p')
 
 model_path = 'pose_landmarker_heavy.task'
@@ -95,6 +98,25 @@ with PoseLandmarker.create_from_options(options) as landmarker:
         mask[int(h*0.75):h, :] = 0
         mask[0:int(h * 0.15), 0:int(w * 0.15)] = 0
 
+        if pose_landmarker_result.pose_landmarks:
+            poses = pose_landmarker_result.pose_landmarks
+            if len(poses) == 2:
+                #Mask for the left fencer
+                fencer_mid_x_left = int(pose_landmarker_result.pose_landmarks[0][23].x * w)
+                xmin_block_left = max(0, fencer_mid_x_left - 150)
+                xmax_block_left = min(w, fencer_mid_x_left + 250)
+                ymin_block_left = max(0, int(pose_landmarker_result.pose_landmarks[0][0].y * h) - 80)
+                ymax_block_left = min(h, int(pose_landmarker_result.pose_landmarks[0][27].y * h) + 80)
+                mask[ymin_block_left:ymax_block_left, xmin_block_left:xmax_block_left] = 0
+
+                #for the right fencer
+                fencer_mid_x_right = int(pose_landmarker_result.pose_landmarks[1][23].x * w)
+                xmin_block_right = max(0, fencer_mid_x_right - 250)
+                xmax_block_right = min(w, fencer_mid_x_right + 150)
+                ymin_block_right = max(0, int(pose_landmarker_result.pose_landmarks[1][0].y * h) - 80)
+                ymax_block_right = min(h, int(pose_landmarker_result.pose_landmarks[1][27].y * h) + 80)
+                mask[ymin_block_right:ymax_block_right, xmin_block_right:xmax_block_right] = 0
+
         view_mode = cv2.getTrackbarPos('View', 'Fencing Tracker')
         l_is_lefty = cv2.getTrackbarPos('Left', 'Fencing Tracker')
         r_is_lefty = cv2.getTrackbarPos('Right', 'Fencing Tracker')
@@ -140,16 +162,6 @@ with PoseLandmarker.create_from_options(options) as landmarker:
         if pose_landmarker_result.pose_landmarks:
             poses = pose_landmarker_result.pose_landmarks
 
-            for pose in poses:
-                # Extract hip center coordinate for each detected body skeleton
-                fencer_mid_x = int(pose[23].x * w)
-                
-                # Create a protective barrier column around each fencer (100px left and right)
-                xmin_block = max(0, fencer_mid_x - 200)
-                xmax_block = min(w, fencer_mid_x + 200)
-                
-                # Black out the vertical strip column in the structural mask
-                mask[:, xmin_block:xmax_block] = 0
 
             if len(poses) == 2:
                 #if last_pos_l is None and last_pos_r is None:
@@ -319,7 +331,7 @@ with PoseLandmarker.create_from_options(options) as landmarker:
         prev_gray = gray.copy()
         debug_frame = cv2.bitwise_and(frame, frame, mask=mask)
         # Display raw camera frame shift value on video overlay
-        cv2.putText(debug_frame, f"Cam Shift: {dx_cam:.1f} px", (20, 40),
+        cv2.putText(frame, f"Cam Shift: {dx_cam:.1f} px", (20, 40),
             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
         cv2.imshow('Fencing Tracker', debug_frame)
         if cv2.waitKey(1) & 0xFF == ord('q'):
