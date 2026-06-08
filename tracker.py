@@ -75,22 +75,28 @@ prev_gray = None
 prev_fencer_x = None
 prev_timestamp = None
 
+frame_counter = 0
+
 with PoseLandmarker.create_from_options(options) as landmarker:
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
             break
-
+        frame_counter += 1
+        frame_timestamp_ms = int(cap.get(cv2.CAP_PROP_POS_MSEC))
+        h, w, _ = frame.shape
+    
+        mediapipe_frame = frame.copy()
+        bottom_mask = int(h*0.85)
+        mediapipe_frame[bottom_mask: h, : ] = 0
+        
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=mediapipe_frame)
 
         
-        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame)
-
-        frame_timestamp_ms = int(cap.get(cv2.CAP_PROP_POS_MSEC))
 
         pose_landmarker_result = landmarker.detect_for_video(mp_image, frame_timestamp_ms)
 
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        h, w, _ = frame.shape
         curr_timestamp = frame_timestamp_ms
         dx_cam = 0.0
 
@@ -325,17 +331,29 @@ with PoseLandmarker.create_from_options(options) as landmarker:
                 prev_fencer_x = curr_fencer_x
                 prev_timestamp = curr_timestamp
 
-        else:
-           continue
+
 
         prev_gray = gray.copy()
         debug_frame = cv2.bitwise_and(frame, frame, mask=mask)
+
         # Display raw camera frame shift value on video overlay
         cv2.putText(frame, f"Cam Shift: {dx_cam:.1f} px", (20, 40),
             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
-        cv2.imshow('Fencing Tracker', debug_frame)
-        if cv2.waitKey(1) & 0xFF == ord('q'):
+        cv2.imshow('Fencing Tracker', frame)
+
+        key = cv2.waitKey(1) & 0xFF
+
+        if key == ord('q'):
             break
+        elif key == ord('f'):
+            print("Fast Forward 5 seconds.")
+            frame_counter += 150
+            cap.set(cv2.CAP_PROP_POS_FRAMES, frame_counter)
+
+            #wiping tracking history to prevent velocity spikes etc.
+            prev_gray = None
+            prev_fencer_x = None
+            prev_timestamp = None
 
 
 cap.release()
