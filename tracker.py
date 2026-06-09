@@ -8,14 +8,30 @@ from mediapipe.tasks.python.vision import PoseLandmarker, PoseLandmarkerOptions,
 import numpy as np
 
 # youtube links: 
-#Left vs Kano (2025): 'https://www.youtube.com/watch?v=MVqBp6dDTXg'
-#Right vs Limardo (2025): 'https://www.youtube.com/watch?v=IP1D0h0Gf4M'
 
 #Left vs Kano (2025)
 #youtube_url = 'https://www.youtube.com/watch?v=MVqBp6dDTXg'
+
 #Right vs Limardo (2025)
-youtube_url = 'https://www.youtube.com/watch?v=IP1D0h0Gf4M'
-cap = cap_from_youtube(youtube_url, '1080p')
+#youtube_url = 'https://www.youtube.com/watch?v=IP1D0h0Gf4M'
+
+#Left vs Kano (2026)
+#youtube_url = 'https://www.youtube.com/watch?v=wInslesUx3M'
+
+#Right vs Koshman (2025)
+#youtube_url = 'https://www.youtube.com/watch?v=BUp2XJPfGMM'
+
+#Left vs Elsayed (2025)
+#youtube_url = 'https://www.youtube.com/watch?v=QTT23ThVFoc'
+
+#Left vs Lan (2025)
+#youtube_url = 'https://www.youtube.com/watch?v=679C3bDxmxI'
+
+#Right vs Loyola (2025)
+youtube_url = 'https://www.youtube.com/watch?v=rKGKpmG89Yc'
+
+
+cap = cap_from_youtube(youtube_url, 'best')
 
 model_path = 'pose_landmarker_heavy.task'
 
@@ -108,19 +124,19 @@ with PoseLandmarker.create_from_options(options) as landmarker:
             poses = pose_landmarker_result.pose_landmarks
             if len(poses) == 2:
                 #Mask for the left fencer
-                fencer_mid_x_left = int(pose_landmarker_result.pose_landmarks[0][23].x * w)
-                xmin_block_left = max(0, fencer_mid_x_left - 150)
-                xmax_block_left = min(w, fencer_mid_x_left + 250)
-                ymin_block_left = max(0, int(pose_landmarker_result.pose_landmarks[0][0].y * h) - 80)
-                ymax_block_left = min(h, int(pose_landmarker_result.pose_landmarks[0][27].y * h) + 80)
+                fencer_mid_x_left = int(poses[0][23].x * w)
+                xmin_block_left = max(0, fencer_mid_x_left - int(0.08 * w))
+                xmax_block_left = min(w, fencer_mid_x_left + int(0.15 * w))
+                ymin_block_left = max(0, int(poses[0][0].y * h) - int(0.07 * h))
+                ymax_block_left = min(h, int(poses[0][27].y * h) + int(0.07 * h))
                 mask[ymin_block_left:ymax_block_left, xmin_block_left:xmax_block_left] = 0
 
                 #for the right fencer
-                fencer_mid_x_right = int(pose_landmarker_result.pose_landmarks[1][23].x * w)
-                xmin_block_right = max(0, fencer_mid_x_right - 250)
-                xmax_block_right = min(w, fencer_mid_x_right + 150)
-                ymin_block_right = max(0, int(pose_landmarker_result.pose_landmarks[1][0].y * h) - 80)
-                ymax_block_right = min(h, int(pose_landmarker_result.pose_landmarks[1][27].y * h) + 80)
+                fencer_mid_x_right = int(poses[1][23].x * w)
+                xmin_block_right = max(0, fencer_mid_x_right - int(0.15 * w))
+                xmax_block_right = min(w, fencer_mid_x_right + int(0.08 * w))
+                ymin_block_right = max(0, int(poses[1][0].y * h) - int(0.07 * h))
+                ymax_block_right = min(h, int(poses[1][27].y * h) + int(0.07 * h))
                 mask[ymin_block_right:ymax_block_right, xmin_block_right:xmax_block_right] = 0
 
         view_mode = cv2.getTrackbarPos('View', 'Fencing Tracker')
@@ -339,7 +355,7 @@ with PoseLandmarker.create_from_options(options) as landmarker:
         # Display raw camera frame shift value on video overlay
         cv2.putText(frame, f"Cam Shift: {dx_cam:.1f} px", (20, 40),
             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
-        cv2.imshow('Fencing Tracker', frame)
+        cv2.imshow('Fencing Tracker', debug_frame)
 
         key = cv2.waitKey(1) & 0xFF
 
