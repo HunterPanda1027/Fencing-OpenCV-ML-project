@@ -10,7 +10,7 @@ import numpy as np
 # youtube links: 
 
 #Left vs Kano (2025)
-#youtube_url = 'https://www.youtube.com/watch?v=MVqBp6dDTXg'
+youtube_url = 'https://www.youtube.com/watch?v=MVqBp6dDTXg'
 
 #Right vs Limardo (2025)
 #youtube_url = 'https://www.youtube.com/watch?v=IP1D0h0Gf4M'
@@ -28,7 +28,7 @@ import numpy as np
 #youtube_url = 'https://www.youtube.com/watch?v=679C3bDxmxI'
 
 #Right vs Loyola (2025)
-youtube_url = 'https://www.youtube.com/watch?v=rKGKpmG89Yc'
+#youtube_url = 'https://www.youtube.com/watch?v=rKGKpmG89Yc'
 
 
 cap = cap_from_youtube(youtube_url, 'best')
@@ -39,7 +39,7 @@ options = PoseLandmarkerOptions(
     base_options = BaseOptions(model_asset_path=model_path),
     running_mode=RunningMode.VIDEO,
     num_poses=2,
-    min_pose_detection_confidence=0.8,  # Initial detection sensitivity
+    min_pose_detection_confidence=0.7,  # Initial detection sensitivity
     min_pose_presence_confidence=0.8,   # Sensitivity to keep tracking the pose
     min_tracking_confidence=0.5  #temporal consistency sensitivity
 )
@@ -108,9 +108,11 @@ with PoseLandmarker.create_from_options(options) as landmarker:
         
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=mediapipe_frame)
 
-        
-
         pose_landmarker_result = landmarker.detect_for_video(mp_image, frame_timestamp_ms)
+
+        view_mode = cv2.getTrackbarPos('View', 'Fencing Tracker')
+        l_is_lefty = cv2.getTrackbarPos('Left', 'Fencing Tracker')
+        r_is_lefty = cv2.getTrackbarPos('Right', 'Fencing Tracker')
 
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         curr_timestamp = frame_timestamp_ms
@@ -123,82 +125,70 @@ with PoseLandmarker.create_from_options(options) as landmarker:
         if pose_landmarker_result.pose_landmarks:
             poses = pose_landmarker_result.pose_landmarks
             if len(poses) == 2:
-                #Mask for the left fencer
-                fencer_mid_x_left = int(poses[0][23].x * w)
-                xmin_block_left = max(0, fencer_mid_x_left - int(0.08 * w))
-                xmax_block_left = min(w, fencer_mid_x_left + int(0.15 * w))
-                ymin_block_left = max(0, int(poses[0][0].y * h) - int(0.07 * h))
-                ymax_block_left = min(h, int(poses[0][27].y * h) + int(0.07 * h))
-                mask[ymin_block_left:ymax_block_left, xmin_block_left:xmax_block_left] = 0
-
-                #for the right fencer
-                fencer_mid_x_right = int(poses[1][23].x * w)
-                xmin_block_right = max(0, fencer_mid_x_right - int(0.15 * w))
-                xmax_block_right = min(w, fencer_mid_x_right + int(0.08 * w))
-                ymin_block_right = max(0, int(poses[1][0].y * h) - int(0.07 * h))
-                ymax_block_right = min(h, int(poses[1][27].y * h) + int(0.07 * h))
-                mask[ymin_block_right:ymax_block_right, xmin_block_right:xmax_block_right] = 0
-
-        view_mode = cv2.getTrackbarPos('View', 'Fencing Tracker')
-        l_is_lefty = cv2.getTrackbarPos('Left', 'Fencing Tracker')
-        r_is_lefty = cv2.getTrackbarPos('Right', 'Fencing Tracker')
-
-        if prev_gray is not None:
-            # Step A: Find sharp features anywhere in the current frame (strip edges, machine lights)
-            # Because the background is black, it will naturally find the strip and machine!
-            feat_prev = cv2.goodFeaturesToTrack(prev_gray, maxCorners=100, qualityLevel=0.01, minDistance=10, mask=mask)
-            
-            if feat_prev is not None:
-                # Step B: Track where those points moved in the new frame
-                feat_next, status, _ = cv2.calcOpticalFlowPyrLK(prev_gray, gray, feat_prev, None)
-                
-                valid_prev = feat_prev[status == 1]
-                valid_next = feat_next[status == 1]
-                
-                if len(valid_next) >= 4: # We need at least 4 points to calculate background movement
-                    # Step C: The RANSAC Magic. It filters out the fencers and finds the true camera shift.
-                    matrix, inliers = cv2.estimateAffinePartial2D(valid_prev, valid_next, method=cv2.RANSAC, ransacReprojThreshold=3.0)
-                    
-                    if matrix is not None:
-                        # dx_cam is the horizontal translation component of the camera movement matrix
-                        dx_cam = matrix[0, 2]
-
-                        # --- DEBUG DOTS ---
-                        # Loop through tracked features to verify what the math sees
-                        for i, (p_prev, p_next) in enumerate(zip(valid_prev, valid_next)):
-                            pt_x, pt_y = map(int, p_next)
-                            if inliers[i] == 1:
-                                # Safe Background Anchor point (Strip/Machine) -> GREEN
-                                cv2.circle(frame, (pt_x, pt_y), 3, (0, 255, 0), -1)
-                            else:
-                                # Moving Object Point (Fencer) -> RED (Ignored by math)
-                                cv2.circle(frame, (pt_x, pt_y), 4, (0, 0, 255), -1)
-                        
-
-        #code: fencer side part
-        #fencers: r for right, l for left
-        #body parts side: r for right, l for left
-        #body parts: h for hips, w for wrists, s for shoulder, e for elbow, f for finger, k for knees, a for ankles
-
-
-        if pose_landmarker_result.pose_landmarks:
-            poses = pose_landmarker_result.pose_landmarks
-
-
-            if len(poses) == 2:
-                #if last_pos_l is None and last_pos_r is None:
                 poses = sorted(poses, key=lambda p: p[23].x)
                 fencer_l_data = poses[0]
                 fencer_r_data = poses[1]
                 first_frame_lock = True
-                #else: 
-                    #dist_0_to_l = ((poses[0][23].x - last_pos_l[0])**2 + (poses[0][23].y - last_pos_l[1])**2)**0.5
-                    #dist_1_to_l = ((poses[1][23].x - last_pos_l[0])**2 + (poses[1][23].y - last_pos_l[1])**2)**0.5
 
-                   # if dist_0_to_l < dist_1_to_l:
-                      #  fencer_l_data, fencer_r_data = poses[0], poses[1]
-                   # else: 
-                     #   fencer_l_data, fencer_r_data = poses[1], poses[0]
+                #Mask for the left fencer
+                fencer_mid_x_left = int(fencer_l_data[23].x * w)
+                xmin_block_left = max(0, fencer_mid_x_left - int(0.08 * w))
+                xmax_block_left = min(w, fencer_mid_x_left + int(0.15 * w))
+                ymin_block_left = max(0, int(fencer_l_data[0].y * h) - int(0.07 * h))
+                ymax_block_left = min(h, int(fencer_l_data[27].y * h) + int(0.07 * h))
+                mask[ymin_block_left:ymax_block_left, xmin_block_left:xmax_block_left] = 0
+
+                #for the right fencer
+                fencer_mid_x_right = int(fencer_r_data[23].x * w)
+                xmin_block_right = max(0, fencer_mid_x_right - int(0.15 * w))
+                xmax_block_right = min(w, fencer_mid_x_right + int(0.08 * w))
+                ymin_block_right = max(0, int(fencer_r_data[0].y * h) - int(0.07 * h))
+                ymax_block_right = min(h, int(fencer_r_data[27].y * h) + int(0.07 * h))
+                mask[ymin_block_right:ymax_block_right, xmin_block_right:xmax_block_right] = 0
+
+        
+
+                if prev_gray is not None:
+                    # Step A: Find sharp features anywhere in the current frame (strip edges, machine lights)
+                    # Because the background is black, it will naturally find the strip and machine!
+                    feat_prev = cv2.goodFeaturesToTrack(prev_gray, maxCorners=100, qualityLevel=0.01, minDistance=10, mask=mask)
+                    
+                    if feat_prev is not None:
+                        # Step B: Track where those points moved in the new frame
+                        feat_next, status, _ = cv2.calcOpticalFlowPyrLK(prev_gray, gray, feat_prev, None)
+                        
+                        valid_prev = feat_prev[status == 1]
+                        valid_next = feat_next[status == 1]
+                        
+                        if len(valid_next) >= 4: # We need at least 4 points to calculate background movement
+                            # Step C: The RANSAC Magic. It filters out the fencers and finds the true camera shift.
+                            matrix, inliers = cv2.estimateAffinePartial2D(valid_prev, valid_next, method=cv2.RANSAC, ransacReprojThreshold=3.0)
+                            
+                            if matrix is not None:
+                                # dx_cam is the horizontal translation component of the camera movement matrix
+                                dx_cam = matrix[0, 2]
+
+                                # --- DEBUG DOTS ---
+                                # Loop through tracked features to verify what the math sees
+                                for i, (p_prev, p_next) in enumerate(zip(valid_prev, valid_next)):
+                                    pt_x, pt_y = map(int, p_next)
+                                    if inliers[i] == 1:
+                                        # Safe Background Anchor point (Strip/Machine) -> GREEN
+                                        cv2.circle(frame, (pt_x, pt_y), 3, (0, 255, 0), -1)
+                                    else:
+                                        # Moving Object Point (Fencer) -> RED (Ignored by math)
+                                        cv2.circle(frame, (pt_x, pt_y), 4, (0, 0, 255), -1)
+                        
+
+                #code: fencer side part
+                #fencers: r for right, l for left
+                #body parts side: r for right, l for left
+                #body parts: h for hips, w for wrists, s for shoulder, e for elbow, f for finger, k for knees, a for ankles
+
+                poses = sorted(poses, key=lambda p: p[23].x)
+                fencer_l_data = poses[0]
+                fencer_r_data = poses[1]
+                first_frame_lock = True
 
                 last_pos_l = (fencer_l_data[23].x, fencer_l_data[23].y)
                 last_pos_r = (fencer_r_data[23].x, fencer_r_data[23].y)
@@ -355,7 +345,7 @@ with PoseLandmarker.create_from_options(options) as landmarker:
         # Display raw camera frame shift value on video overlay
         cv2.putText(frame, f"Cam Shift: {dx_cam:.1f} px", (20, 40),
             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
-        cv2.imshow('Fencing Tracker', debug_frame)
+        cv2.imshow('Fencing Tracker', frame)
 
         key = cv2.waitKey(1) & 0xFF
 
