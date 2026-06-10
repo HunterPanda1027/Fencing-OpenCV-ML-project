@@ -7,7 +7,7 @@ from mediapipe.tasks.python import BaseOptions
 from mediapipe.tasks.python.vision import PoseLandmarker, PoseLandmarkerOptions, RunningMode
 import numpy as np
 
-def generate_data(youtube_url, match_name):
+def generate_data(youtube_url, match_name, side, is_lefty):
     """Processes a single video and saves data to a unique CSV"""
 
     cap = cap_from_youtube(youtube_url, 'best')
@@ -28,16 +28,6 @@ def generate_data(youtube_url, match_name):
 
     cv2.namedWindow('Fencing Tracker')
 
-    cv2.createTrackbar('View', 'Fencing Tracker', 3, 3, nothing)
-    cv2.createTrackbar('Left', 'Fencing Tracker', 0, 1, nothing)
-    cv2.createTrackbar('Right', 'Fencing Tracker', 0, 1, nothing)
-
-    #Making sure that the first fencer on the left will be the left fencer at all time
-    first_frame_lock = False
-    left_fencer_id = None
-
-    last_pos_l = None
-    last_pos_r = None
         
     csv_file = open(f'fencing_data_{match_name}.csv', mode='w', newline='')
     csv_writer = csv.writer(csv_file)
@@ -89,12 +79,8 @@ def generate_data(youtube_url, match_name):
 
             pose_landmarker_result = landmarker.detect_for_video(mp_image, frame_timestamp_ms)
 
-            view_mode = cv2.getTrackbarPos('View', 'Fencing Tracker')
-            l_is_lefty = cv2.getTrackbarPos('Left', 'Fencing Tracker')
-            r_is_lefty = cv2.getTrackbarPos('Right', 'Fencing Tracker')
 
             gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            curr_timestamp = frame_timestamp_ms
             dx_cam = 0.0
 
             mask = np.ones(gray.shape, dtype=np.uint8) * 255
@@ -107,7 +93,6 @@ def generate_data(youtube_url, match_name):
                     poses = sorted(poses, key=lambda p: p[23].x)
                     fencer_l_data = poses[0]
                     fencer_r_data = poses[1]
-                    first_frame_lock = True
 
                     #Mask for the left fencer
                     fencer_mid_x_left = int(fencer_l_data[23].x * w)
@@ -117,7 +102,7 @@ def generate_data(youtube_url, match_name):
                     ymax_block_left = min(h, int(fencer_l_data[27].y * h) + int(0.07 * h))
                     mask[ymin_block_left:ymax_block_left, xmin_block_left:xmax_block_left] = 0
 
-                    #for the right fencer
+                    #Mask for the right fencer
                     fencer_mid_x_right = int(fencer_r_data[23].x * w)
                     xmin_block_right = max(0, fencer_mid_x_right - int(0.15 * w))
                     xmax_block_right = min(w, fencer_mid_x_right + int(0.08 * w))
@@ -164,21 +149,13 @@ def generate_data(youtube_url, match_name):
                     #body parts side: r for right, l for left
                     #body parts: h for hips, w for wrists, s for shoulder, e for elbow, f for finger, k for knees, a for ankles
 
-                    poses = sorted(poses, key=lambda p: p[23].x)
-                    fencer_l_data = poses[0]
-                    fencer_r_data = poses[1]
-                    first_frame_lock = True
-
-                    last_pos_l = (fencer_l_data[23].x, fencer_l_data[23].y)
-                    last_pos_r = (fencer_r_data[23].x, fencer_r_data[23].y)
-
                     llh = fencer_l_data[23]
                     lrh = fencer_l_data[24]
-                    lw = fencer_l_data[15] if l_is_lefty == 1 else fencer_l_data[16]
+                    lw = fencer_l_data[15] if side == 0 & is_lefty == 1 else fencer_l_data[16]
                     lrs = fencer_l_data[12]
                     lls = fencer_l_data[11]
-                    le = fencer_l_data[13] if l_is_lefty == 1 else fencer_l_data[14]
-                    lf = fencer_l_data[19] if l_is_lefty == 1 else fencer_l_data[20]
+                    le = fencer_l_data[13] if side == 0 & is_lefty == 1 else fencer_l_data[14]
+                    lf = fencer_l_data[19] if side == 0 & is_lefty == 1 else fencer_l_data[20]
                     lrk = fencer_l_data[26]
                     llk = fencer_l_data[25]
                     lra = fencer_l_data[28]
@@ -186,11 +163,11 @@ def generate_data(youtube_url, match_name):
 
                     rlh = fencer_r_data[23]
                     rrh = fencer_r_data[24]
-                    rw = fencer_r_data[15] if r_is_lefty == 1 else fencer_r_data[16]
+                    rw = fencer_r_data[15] if side == 1 & is_lefty == 1 else fencer_r_data[16]
                     rrs = fencer_r_data[12]
                     rls = fencer_r_data[11]
-                    re = fencer_r_data[13] if r_is_lefty == 1 else fencer_r_data[14]
-                    rf = fencer_r_data[19] if r_is_lefty == 1 else fencer_r_data[20]
+                    re = fencer_r_data[13] if side == 1 & is_lefty == 1 else fencer_r_data[14]
+                    rf = fencer_r_data[19] if side == 1 & is_lefty == 1 else fencer_r_data[20]
                     rrk = fencer_r_data[26]
                     rlk = fencer_r_data[25]
                     rra = fencer_r_data[28]
@@ -222,7 +199,7 @@ def generate_data(youtube_url, match_name):
                                         rf.x, rf.y, rf.z])
                     
                     #left fencer
-                    if view_mode in [1,3]: 
+                    if side in [0,2]: 
 
                         llhx, llhy = int(llh.x * w), int(llh.y * h)
                         cv2.circle(frame, (llhx, llhy), 8, (0, 0, 255), -1)
@@ -257,7 +234,8 @@ def generate_data(youtube_url, match_name):
                         llax, llay = int(lla.x * w), int(lla.y * h)
                         cv2.circle(frame, (llax, llay), 8, (0, 0, 255), -1)
 
-                    if view_mode in [2,3]:
+                    #right fencer
+                    if side in [1,2]:
 
                         #right fencer
                         rlhx, rlhy = int(rlh.x * w), int(rlh.y * h)
@@ -300,6 +278,7 @@ def generate_data(youtube_url, match_name):
             # Display raw camera frame shift value on video overlay
             cv2.putText(frame, f"Cam Shift: {dx_cam:.1f} px", (20, 40),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
+            
             cv2.imshow('Fencing Tracker', frame)
 
             key = cv2.waitKey(1) & 0xFF
@@ -329,4 +308,4 @@ def generate_data(youtube_url, match_name):
 if __name__ == "__main__":
     test_url = 'https://www.youtube.com/watch?v=MVqBp6dDTXg'
     test_name = "Left vs Kano (2025)"
-    generate_data(test_url, test_name)
+    generate_data(test_url, test_name, 0, 0)
