@@ -9,11 +9,11 @@ import numpy as np
 
 # youtube links: 
 
-#Left vs Kano (2025)
-youtube_url = 'https://www.youtube.com/watch?v=MVqBp6dDTXg'
+#match_name = "Left vs Kano (2025)"
+#youtube_url = 'https://www.youtube.com/watch?v=MVqBp6dDTXg'
 
-#Right vs Limardo (2025)
-#youtube_url = 'https://www.youtube.com/watch?v=IP1D0h0Gf4M'
+match_name = "Right vs Limardo (2025)"
+youtube_url = 'https://www.youtube.com/watch?v=IP1D0h0Gf4M'
 
 #Left vs Kano (2026)
 #youtube_url = 'https://www.youtube.com/watch?v=wInslesUx3M'
@@ -60,9 +60,9 @@ left_fencer_id = None
 last_pos_l = None
 last_pos_r = None
     
-csv_file = open('fencing_data.csv', mode='w', newline='')
+csv_file = open(f'fencing_data_{match_name}.csv', mode='w', newline='')
 csv_writer = csv.writer(csv_file)
-csv_writer.writerow(['timestamp_ms',
+csv_writer.writerow(['timestamp_ms', 'cam_shift'
                      'lla_x', 'lla_y', 'lla_z',
                      'lra_x', 'lra_y', 'lra_z',
                      'llk_x', 'llk_y', 'llk_z',
@@ -217,7 +217,7 @@ with PoseLandmarker.create_from_options(options) as landmarker:
                 rra = fencer_r_data[28]
                 rla = fencer_r_data[27]
 
-                csv_writer.writerow([frame_timestamp_ms,
+                csv_writer.writerow([frame_timestamp_ms, dx_cam,
                                     lla.x, lla.y, lla.z,
                                     lra.x, lra.y, lra.z,
                                     llk.x, llk.y, llk.z,
@@ -314,31 +314,7 @@ with PoseLandmarker.create_from_options(options) as landmarker:
                     rlax, rlay = int(rla.x * w), int(rla.y * h)
                     cv2.circle(frame, (rlax, rlay), 8, (0, 255, 0), -1)
 
-                front_shoulder = fencer_l_data[12] # Assuming righty front shoulder
-                curr_fencer_x = int(front_shoulder.x * w)
                 
-                velocity = 0.0
-                if prev_fencer_x is not None and prev_timestamp is not None:
-                    dt = curr_timestamp - prev_timestamp
-                    
-                    dx_observed = curr_fencer_x - prev_fencer_x
-                    dx_true = dx_observed - dx_cam # Subtract the camera's panning movement
-                    
-                    if dt > 0:
-                        velocity = abs(dx_true / dt) * 1000 # True speed in pixels per second
-                
-                # Draw the tracking indicator
-                fs_y = int(front_shoulder.y * h)
-                cv2.circle(frame, (curr_fencer_x, fs_y), 8, (0, 0, 255), -1)
-                cv2.putText(frame, f"True Speed: {velocity:.1f} px/s", (curr_fencer_x - 40, fs_y - 20),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 255), 2)
-                
-                # Save states for next iteration
-                prev_fencer_x = curr_fencer_x
-                prev_timestamp = curr_timestamp
-
-
-
         prev_gray = gray.copy()
         debug_frame = cv2.bitwise_and(frame, frame, mask=mask)
 
