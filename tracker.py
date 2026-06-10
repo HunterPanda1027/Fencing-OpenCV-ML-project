@@ -306,6 +306,6 @@ def generate_data(youtube_url, match_name, side, is_lefty):
 
 #Allows for more testing
 if __name__ == "__main__":
-    test_url = 'https://www.youtube.com/watch?v=MVqBp6dDTXg'
-    test_name = "Left vs Kano (2025)"
-    generate_data(test_url, test_name, 0, 0)
+    test_url = 'https://www.youtube.com/watch?v=l0gb5h83N9Y'
+    test_name = "Borel (2022)"
+    generate_data(test_url, test_name, 2, 0)
