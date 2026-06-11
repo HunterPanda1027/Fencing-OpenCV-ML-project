@@ -23,15 +23,12 @@ def generate_data(youtube_url, match_name, side, is_lefty):
         min_tracking_confidence=0.5  #temporal consistency sensitivity
     )
 
-    def nothing(x):
-        pass
-
     cv2.namedWindow('Fencing Tracker')
 
         
     csv_file = open(f'fencing_data_{match_name}.csv', mode='w', newline='')
     csv_writer = csv.writer(csv_file)
-    csv_writer.writerow(['timestamp_ms', 'cam_shift'
+    csv_writer.writerow(['timestamp_ms', 'cam_shift',
                         'lla_x', 'lla_y', 'lla_z',
                         'lra_x', 'lra_y', 'lra_z',
                         'llk_x', 'llk_y', 'llk_z',
@@ -307,5 +304,5 @@ def generate_data(youtube_url, match_name, side, is_lefty):
 #Allows for more testing
 if __name__ == "__main__":
     test_url = 'https://www.youtube.com/watch?v=l0gb5h83N9Y'
-    test_name = "Borel (2022)"
+    test_name = "test"
     generate_data(test_url, test_name, 2, 0)
