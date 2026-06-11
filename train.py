@@ -40,6 +40,9 @@ def train_model():
 
     # 4. INITIALIZE MODEL & OPTIMIZATION TOOLS
     model = Fencing1DCNN(num_features=num_features).to(device)
+
+    # 🌟 THE FIX: Tell the AI that a Lunge is roughly 66x more important to catch than Neutral
+    weights = torch.tensor([1.0, 66.0], dtype=torch.float32).to(device)
     
     # CrossEntropyLoss handles imbalanced data classifications (lots of 0s, few 1s)
     criterion = nn.CrossEntropyLoss() 
