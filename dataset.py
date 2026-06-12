@@ -27,10 +27,6 @@ class FencingLungeDataset(Dataset): # Matched to your exact error name!
             features_df = features_df.fillna(0)
             
 
-            
-            # Locate all X-coordinate columns to manage left/right mirroring
-            x_cols = [col for col in features_df.columns if '_x' in col.lower() or 'x_' in col.lower()]
-
             if "left" in file:
                 features_df = features_df.iloc[:, :34]
 
@@ -46,7 +42,8 @@ class FencingLungeDataset(Dataset): # Matched to your exact error name!
                 final_df["front_ankle_velocity"] = features_df["lra_x"].diff().fillna(0) - features_df["cam_shift"]
             else:
                 features_df = features_df.iloc[:, np.r_[0, -33:0]]
-                df[x_cols] = 1.0 - df[x_cols] #mirroring
+                x_cols = [col for col in features_df.columns if '_x' in col.lower() or 'x_' in col.lower()]
+                features_df[x_cols] = 1.0 - features_df[x_cols] #mirroring
 
                 final_df = pd.DataFrame(index = features_df.index)
 
@@ -55,9 +52,9 @@ class FencingLungeDataset(Dataset): # Matched to your exact error name!
                 final_df['ankle_distance'] = (features_df['rra_x'] - features_df['rla_x']).abs()
 
                 #tracking velocities
-                final_df["shoulder_velocity"] = features_df["rrs_x"].diff().fillna(0) - features_df["cam_shift"]
-                final_df["wrist_velocity"] = features_df["rw_x"].diff().fillna(0) - features_df["cam_shift"]
-                final_df["front_ankle_velocity"] = features_df["rra_x"].diff().fillna(0) - features_df["cam_shift"]
+                final_df["shoulder_velocity"] = features_df["rrs_x"].diff().fillna(0) + features_df["cam_shift"]
+                final_df["wrist_velocity"] = features_df["rw_x"].diff().fillna(0) + features_df["cam_shift"]
+                final_df["front_ankle_velocity"] = features_df["rra_x"].diff().fillna(0) + features_df["cam_shift"]
             
             feature_matrix = final_df.to_numpy(dtype=np.float32)
             
