@@ -5,6 +5,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import Dataset
 
+TARGET_WINDOW_SIZE = 12
+
 # ==========================================
 # 1. THE REPAIRED DATA PIPELINE
 # ==========================================
@@ -30,12 +32,34 @@ class FencingLungeDataset(Dataset): # Matched to your exact error name!
             x_cols = [col for col in features_df.columns if '_x' in col.lower() or 'x_' in col.lower()]
 
             if "left" in file:
-                features_df = features_df.iloc[:, :12]
+                features_df = features_df.iloc[:, :34]
+
+                final_df = pd.DataFrame(index = features_df.index)
+
+                #tracking hip frop and distance between ankles
+                final_df["hip_y"] = features_df["lrh_y"] 
+                final_df['ankle_distance'] = (features_df['lra_x'] - features_df['lla_x']).abs()
+
+                #tracking velocities
+                final_df["shoulder_velocity"] = features_df["lrs_x"].diff().fillna(0) - features_df["cam_shift"]
+                final_df["wrist_velocity"] = features_df["lw_x"].diff().fillna(0) - features_df["cam_shift"]
+                final_df["front_ankle_velocity"] = features_df["lra_x"].diff().fillna(0) - features_df["cam_shift"]
             else:
-                features_df = features_df.iloc[:, np.r_[0, -11:0]]
+                features_df = features_df.iloc[:, np.r_[0, -33:0]]
                 df[x_cols] = 1.0 - df[x_cols] #mirroring
+
+                final_df = pd.DataFrame(index = features_df.index)
+
+                 #tracking hip frop and distance between ankles
+                final_df["hip_y"] = features_df["rrh_y"] 
+                final_df['ankle_distance'] = (features_df['rra_x'] - features_df['rla_x']).abs()
+
+                #tracking velocities
+                final_df["shoulder_velocity"] = features_df["rrs_x"].diff().fillna(0) - features_df["cam_shift"]
+                final_df["wrist_velocity"] = features_df["rw_x"].diff().fillna(0) - features_df["cam_shift"]
+                final_df["front_ankle_velocity"] = features_df["rra_x"].diff().fillna(0) - features_df["cam_shift"]
             
-            feature_matrix = features_df.to_numpy(dtype=np.float32)
+            feature_matrix = final_df.to_numpy(dtype=np.float32)
             
             # Force labels to integers, converting any accidental text errors to 0
             df['action_label'] = pd.to_numeric(df['action_label'], errors='coerce').fillna(0)
@@ -47,10 +71,11 @@ class FencingLungeDataset(Dataset): # Matched to your exact error name!
             for start_idx in range(0, num_rows - window_size + 1, step_size):
                 end_idx = start_idx + window_size
                 window_features = feature_matrix[start_idx:end_idx].copy()
-                window_labels = labels[start_idx:end_idx]
+
+                window_labels = labels[start_idx : start_idx + TARGET_WINDOW_SIZE]
 
                 # Label assignment: If any frame is a lunge (1), the window is a lunge
-                target_label = 1 if np.any(window_labels == 1) else 0
+                target_label = 1 if np.sum(window_labels == 1) >= (TARGET_WINDOW_SIZE / 2) else 0
                 
                 self.X.append(window_features)
                 self.y.append(target_label)
@@ -102,7 +127,7 @@ if __name__ == "__main__":
     my_files = ["labelled(left)_fencing_data_Kano (2025).csv", "labelled(right)_fencing_data_Limardo (2025).csv"] 
     
     try:
-        dataset = FencingLungeDataset(csv_files=my_files, window_size=12)
+        dataset = FencingLungeDataset(csv_files=my_files, window_size=TARGET_WINDOW_SIZE)
         print("🎉 SUCCESS: Data Pipeline Initialized Safely!")
         print(f"-> Created {len(dataset)} total motion windows.")
         
@@ -111,7 +136,7 @@ if __name__ == "__main__":
         print(f"-> Detected tracking features per frame: {num_features}")
         print(f"-> Total distinct lunge-labeled windows: {int(torch.sum(dataset.y))}")
         
-        model = Fencing1DCNN(num_features=num_features, window_size=12)
+        model = Fencing1DCNN(num_features=num_features, window_size=TARGET_WINDOW_SIZE)
         print("\n🤖 SUCCESS: 1D-CNN Model Structure Built!")
         
         mock_batch = sample_x.unsqueeze(0) 

@@ -5,6 +5,8 @@ from torch.utils.data import DataLoader, random_split
 # Import the dataset and model architecture you just verified from dataset.py
 from dataset import FencingLungeDataset, Fencing1DCNN
 
+TARGET_WINDOW_SIZE = 12
+
 def train_model():
     # 1. SET DEVICE (Utilize Mac's Apple Silicon GPU if available for maximum speed)
     if torch.backends.mps.is_available():
@@ -19,7 +21,6 @@ def train_model():
 
     # 2. LOAD DATASET
     # ⚠️ Double-check that these match your exact filename strings!
-    TARGET_WINDOW_SIZE = 12
     my_files = ["labelled(left)_fencing_data_Kano (2025).csv", "labelled(right)_fencing_data_Limardo (2025).csv"]
     print("\nLoading dataset files...")
     full_dataset = FencingLungeDataset(csv_files=my_files, window_size=TARGET_WINDOW_SIZE)
@@ -46,12 +47,12 @@ def train_model():
     weights = torch.tensor([1.0, 66.0], dtype=torch.float32).to(device)
     
     # CrossEntropyLoss handles imbalanced data classifications (lots of 0s, few 1s)
-    criterion = nn.CrossEntropyLoss() 
+    criterion = nn.CrossEntropyLoss(weight = weights) 
     # Adam optimizer acts as the math steering wheel to adjust network weights smoothly
     optimizer = optim.Adam(model.parameters(), lr=0.001)
 
     # 5. THE MAIN TRAINING LOOP
-    epochs = 20  # Number of times the AI reviews the entire dataset
+    epochs = 10  # Number of times the AI reviews the entire dataset
     print("\n⚡ Starting Training Phase...")
     print("-" * 50)
     
