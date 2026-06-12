@@ -19,9 +19,10 @@ def train_model():
 
     # 2. LOAD DATASET
     # ⚠️ Double-check that these match your exact filename strings!
-    my_files = ["labelled_fencing_data_Kano (2025).csv", "labelled_fencing_data_Limardo (2025).csv"]
+    TARGET_WINDOW_SIZE = 12
+    my_files = ["labelled(left)_fencing_data_Kano (2025).csv", "labelled(right)_fencing_data_Limardo (2025).csv"]
     print("\nLoading dataset files...")
-    full_dataset = FencingLungeDataset(csv_files=my_files, window_size=15)
+    full_dataset = FencingLungeDataset(csv_files=my_files, window_size=TARGET_WINDOW_SIZE)
     
     # Extract feature count automatically from your validated data pipeline
     sample_x, _ = full_dataset[0]
@@ -39,7 +40,7 @@ def train_model():
     print(f"Dataset split completed: {train_size} training windows | {val_size} validation windows.")
 
     # 4. INITIALIZE MODEL & OPTIMIZATION TOOLS
-    model = Fencing1DCNN(num_features=num_features).to(device)
+    model = Fencing1DCNN(num_features=num_features, window_size=TARGET_WINDOW_SIZE).to(device)
 
     # 🌟 THE FIX: Tell the AI that a Lunge is roughly 66x more important to catch than Neutral
     weights = torch.tensor([1.0, 66.0], dtype=torch.float32).to(device)
@@ -50,7 +51,7 @@ def train_model():
     optimizer = optim.Adam(model.parameters(), lr=0.001)
 
     # 5. THE MAIN TRAINING LOOP
-    epochs = 10  # Number of times the AI reviews the entire dataset
+    epochs = 20  # Number of times the AI reviews the entire dataset
     print("\n⚡ Starting Training Phase...")
     print("-" * 50)
     

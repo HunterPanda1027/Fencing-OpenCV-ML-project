@@ -8,11 +8,11 @@ def evaluate():
     device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
     
     # Load dataset and model
-    dataset = FencingLungeDataset(csv_files=["labelled_fencing_data_Kano (2025).csv", "labelled_fencing_data_Limardo (2025).csv"])
+    dataset = FencingLungeDataset(csv_files=["labelled(left)_fencing_data_Kano (2025).csv", "labelled(right)_fencing_data_Limardo (2025).csv"])
     loader = DataLoader(dataset, batch_size=64, shuffle=False)
     
     sample_x, _ = dataset[0]
-    model = Fencing1DCNN(num_features=sample_x.shape[0]).to(device)
+    model = Fencing1DCNN(num_features=sample_x.shape[0], window_size=12).to(device)
     
     # Load the trained weights
     model.load_state_dict(torch.load("fencing_lunge_cnn.pth", map_location=device))
