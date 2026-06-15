@@ -52,9 +52,9 @@ class FencingLungeDataset(Dataset): # Matched to your exact error name!
                 final_df['ankle_distance'] = (features_df['rra_x'] - features_df['rla_x']).abs()
 
                 #tracking velocities
-                final_df["shoulder_velocity"] = features_df["rrs_x"].diff().fillna(0) + features_df["cam_shift"]
-                final_df["wrist_velocity"] = features_df["rw_x"].diff().fillna(0) + features_df["cam_shift"]
-                final_df["front_ankle_velocity"] = features_df["rra_x"].diff().fillna(0) + features_df["cam_shift"]
+                final_df["shoulder_velocity"] = (features_df["rrs_x"].diff().fillna(0) + features_df["cam_shift"]) 
+                final_df["wrist_velocity"] = (features_df["rw_x"].diff().fillna(0) + features_df["cam_shift"]) 
+                final_df["front_ankle_velocity"] = (features_df["rra_x"].diff().fillna(0) + features_df["cam_shift"]) 
             
             feature_matrix = final_df.to_numpy(dtype=np.float32)
             
@@ -77,9 +77,22 @@ class FencingLungeDataset(Dataset): # Matched to your exact error name!
                 self.X.append(window_features)
                 self.y.append(target_label)
                 
-        # CRITICAL FIX: Ensuring self.X and self.y are permanently attached to the class
-        self.X = torch.tensor(np.array(self.X), dtype=torch.float32) 
-        self.y = torch.tensor(np.array(self.y), dtype=torch.long)    
+        # --- GLOBAL Z-SCORE STANDARDIZATION ---
+        # 1. Convert the list of raw windows into a single massive numpy array
+        X_array = np.array(self.X)
+        
+        # 2. Calculate the global mean and standard deviation for each of the 5 features 
+        # across ALL windows and ALL frames (axes 0 and 1)
+        global_mean = np.mean(X_array, axis=(0, 1), keepdims=True)
+        global_std = np.std(X_array, axis=(0, 1), keepdims=True) + 1e-8
+        
+        # 3. Scale the entire dataset uniformly
+        X_scaled = (X_array - global_mean) / global_std
+        
+        # 4. Attach as PyTorch tensors
+        self.X = torch.tensor(X_scaled, dtype=torch.float32) 
+        self.y = torch.tensor(np.array(self.y), dtype=torch.long)
+
 
     def __len__(self):
         return len(self.X)

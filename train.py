@@ -29,30 +29,29 @@ def train_model():
     sample_x, _ = full_dataset[0]
     num_features = sample_x.shape[0]
     
-    # 3. SPLIT DATA (80% Train to learn patterns, 20% Validation to test accuracy)
-    train_size = int(0.8 * len(full_dataset))
+    train_size = int(0.8 *len(full_dataset))
     val_size = len(full_dataset) - train_size
     train_dataset, val_dataset = random_split(full_dataset, [train_size, val_size])
-    
+
     # DataLoaders group windows into batches so the computer processes them efficiently
     train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=64, shuffle=False)
     
-    print(f"Dataset split completed: {train_size} training windows | {val_size} validation windows.")
+    print(f"Dataset split completed: {len(train_dataset)} training windows | {len(val_dataset)} validation windows.")
 
     # 4. INITIALIZE MODEL & OPTIMIZATION TOOLS
     model = Fencing1DCNN(num_features=num_features, window_size=TARGET_WINDOW_SIZE).to(device)
 
     # 🌟 THE FIX: Tell the AI that a Lunge is roughly 66x more important to catch than Neutral
-    weights = torch.tensor([1.0, 66.0], dtype=torch.float32).to(device)
+    weights = torch.tensor([1.0, 45.0], dtype=torch.float32).to(device)
     
     # CrossEntropyLoss handles imbalanced data classifications (lots of 0s, few 1s)
     criterion = nn.CrossEntropyLoss(weight = weights) 
     # Adam optimizer acts as the math steering wheel to adjust network weights smoothly
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
+    optimizer = optim.Adam(model.parameters(), lr=0.0001)
 
     # 5. THE MAIN TRAINING LOOP
-    epochs = 10  # Number of times the AI reviews the entire dataset
+    epochs = 50  # Number of times the AI reviews the entire dataset
     print("\n⚡ Starting Training Phase...")
     print("-" * 50)
     
@@ -82,7 +81,7 @@ def train_model():
             total_train += batch_y.size(0)
             correct_train += (predicted == batch_y).sum().item()
             
-        epoch_loss = running_loss / train_size
+        epoch_loss = running_loss / len(train_dataset)
         epoch_acc = (correct_train / total_train) * 100
         
         # 6. EVALUATION PHASE (Test the AI against unseen data to measure true skills)

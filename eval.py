@@ -10,7 +10,7 @@ def evaluate():
     device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
     
     # Load dataset and model
-    dataset = FencingLungeDataset(csv_files=["labelled(left)_fencing_data_Kano (2025).csv", "labelled(right)_fencing_data_Limardo (2025).csv"], window_size=TARGET_WINDOW_SIZE)
+    dataset = FencingLungeDataset(csv_files=["labelled(right)_fencing_data_Limardo (2025).csv"], window_size=TARGET_WINDOW_SIZE)
     loader = DataLoader(dataset, batch_size=64, shuffle=False)
     
     sample_x, _ = dataset[0]
@@ -27,19 +27,24 @@ def evaluate():
         for batch_x, batch_y in loader:
             batch_x = batch_x.to(device)
             outputs = model(batch_x)
-            _, predicted = torch.max(outputs, 1)
+
+            probabilities = torch.softmax(outputs, dim=1)
+            lunge_probs = probabilities[:, 1].cpu().numpy()
+
+            predicted = np.where(lunge_probs >= 0.5, 1, 0)
             
-            all_preds.extend(predicted.cpu().numpy())
+            all_preds.extend(predicted)
             all_labels.extend(batch_y.numpy())
             
     print("\n📊 THE REALITY CHECK BREAKDOWN:")
     print("-" * 40)
     cm = confusion_matrix(all_labels, all_preds)
-    print(f"True Neutrals spotted: {cm[0][0]}")
-    print(f"Lunges MISSED (False Neutrals): {cm[0][1]}")
-    print(f"Neutrals mistaken for Lunges: {cm[1][0]}")
-    print(f"True Lunges SUCCESSFULLY caught: {cm[1][1]}")
-    print("-" * 40)
+    tn, fp, fn, tp = cm.ravel()
+
+    print(f"True Neutrals spotted: {tn}")
+    print(f"Lunges MISSED (False Neutrals): {fn}")      # 🌟 Fixed: actual lunge predicted neutral
+    print(f"Neutrals mistaken for Lunges: {fp}")      # 🌟 Fixed: actual neutral predicted lunge
+    print(f"True Lunges SUCCESSFULLY caught: {tp}")
     
     # Target precision and recall specifically for class 1 (Lunges)
     print(classification_report(all_labels, all_preds, target_names=["Neutral", "Lunge"]))
